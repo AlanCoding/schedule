@@ -60,7 +60,18 @@ class Scheduler(object):
         for job in sorted(runnable_jobs):
             job.run()
 
-    def run_continuously(self, interval=1):
+    def soonest_next_run(self):
+        right_now = datetime.datetime.now()
+        runnable_jobs = (job for job in self.jobs if job.should_run)
+        for job in runnable_jobs:
+            job._schedule_next_run()
+        next_runs = []
+        for job in runnable_jobs:
+            if job.next_run > right_now:
+                next_runs.append(job.next_run)
+        return min(next_runs)
+
+    def run_continuously(self, interval=None):
         """Continuously run, while executing pending jobs at each elapsed
         time interval.
 
@@ -80,7 +91,11 @@ class Scheduler(object):
             def run(cls):
                 while not cease_continuous_run.is_set():
                     self.run_pending()
-                    time.sleep(interval)
+                    if interval is None:
+                        to_sleep = self.soonest_next_run()
+                    else:
+                        to_sleep = interval
+                    time.sleep(to_sleep)
 
         continuous_thread = ScheduleThread()
         continuous_thread.start()
@@ -278,7 +293,7 @@ def every(interval=1):
     return default_scheduler.every(interval)
 
 
-def run_continuously(interval=1):
+def run_continuously(interval=None):
     """Continuously run, while executing pending jobs at each elapsed
     time interval.
 
